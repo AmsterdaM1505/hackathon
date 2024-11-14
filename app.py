@@ -66,16 +66,6 @@ class GeoApp(App):
 
         return self.layout
 
-    # подключается gps и база данных
-    def on_start(self):
-        try:
-            gps.configure(on_location=self.on_location, on_status=self.on_status)
-        except NotImplementedError:
-            self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
-            self.emulate_location()
-
-        # Подключение к базе данных
-        self.connect_to_db()
 
     # связь с бд
     def connect_to_db(self):
@@ -103,6 +93,16 @@ class GeoApp(App):
             gps.start(minTime=1000, minDistance=1)
             self.label.text = "GPS запущен. Ожидание данных..."
         except Exception as e:
+
+            try:
+                gps.configure(on_location=self.on_location, on_status=self.on_status)
+            except NotImplementedError:
+                self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
+                self.emulate_location()
+
+            # Подключение к базе данных
+            self.connect_to_db()
+            self.on_location()
             error_message = f"Ошибка запуска GPS: {e}"
             print(error_message)  # Для отладки, чтобы видеть ошибку в консоли
             self.label.text = error_message
@@ -118,8 +118,11 @@ class GeoApp(App):
 
     # получение координат
     def on_location(self, **kwargs):
-        lat = kwargs.get('lat', 'Неизвестно')
-        lon = kwargs.get('lon', 'Неизвестно')
+        # lat = kwargs.get('lat')
+        # lon = kwargs.get('lon')
+
+        lat = 55.7332
+        lon = 37.7478
         self.label.text = f"Широта: {lat}\nДолгота: {lon}"
         self.check_nearby_companies(lat, lon)
 
@@ -139,8 +142,10 @@ class GeoApp(App):
             results = self.cursor.fetchall()
 
             if results:
-                chosen_company = random.choice(results)
-                self.send_notification(chosen_company)
+                # chosen_company = random.choice(results)
+                # self.label.text = chosen_company
+                self.show_popup(results)
+                # self.send_notification(chosen_company)
             else:
                 self.show_popup("Нет организаций в радиусе 1 км.")
         except mysql.connector.Error as err:
@@ -148,21 +153,21 @@ class GeoApp(App):
             self.label.text = "Ошибка выполнения запроса к базе данных"
 
     # создает уведомление
-    def send_notification(self, company):
-        company_name = company['Company_name']
-        advertising = company.get('advertising', None)
-
-        if advertising:
-            message = advertising
-        else:
-            message = f"Хотите посетить {company_name}?"
-
-        notification.notify(
-            title="Организация поблизости!",
-            message=message,
-            timeout=10
-        )
-        self.show_popup(f"Организация: {company_name}\n{message}")
+    # def send_notification(self, company):
+    #     company_name = company['Company_name']
+    #     advertising = company.get('advertising', None)
+    #
+    #     if advertising:
+    #         message = advertising
+    #     else:
+    #         message = f"Хотите посетить {company_name}?"
+    #
+    #     notification.notify(
+    #         title="Организация поблизости!",
+    #         message=message,
+    #         timeout=10
+    #     )
+    #     self.show_popup(f"Организация: {company_name}\n{message}")
 
     def on_status(self, stype, status):
         self.label.text = f"Статус: {status}"
@@ -181,15 +186,32 @@ class GeoApp(App):
     # создает фиктивные данные о местонахождении пользователя
     def emulate_location(self):
         def mock_data():
-            fake_data = {'lat': 55.7558, 'lon': 37.6176}
+            fake_data = {'lat': 55.7332, 'lon': 37.7478}
             self.on_location(**fake_data)
 
         Timer(5.0, mock_data).start()
 
     # Показывает текст
+    # def show_popup(self, message):
+    #     popup = Popup(title='Уведомление',
+    #                   content=Label(text=message),
+    #                   size_hint=(0.8, 0.4))
+    #     popup.open()
+
     def show_popup(self, message):
+        # Проверяем, является ли message строкой
+        if isinstance(message, str):
+            content = message
+        # Проверяем, является ли message списком словарей
+        elif isinstance(message, list) and all(isinstance(i, dict) for i in message):
+            # Преобразуем список словарей в строку
+            content = '\n'.join(
+                [f"{company['Company_name']} (Расстояние: {round(company['distance'], 2)} км)" for company in message])
+        else:
+            content = "Неверный формат сообщения"
+
         popup = Popup(title='Уведомление',
-                      content=Label(text=message),
+                      content=Label(text=content),
                       size_hint=(0.8, 0.4))
         popup.open()
 
