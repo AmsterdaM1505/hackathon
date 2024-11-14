@@ -1,6 +1,6 @@
 # тута мы импортируем библиотеки
+import plyer
 from plyer import gps
-from plyer import notification
 from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
@@ -12,7 +12,8 @@ from kivy.graphics import Color, Ellipse, RoundedRectangle
 import mysql.connector
 import random
 from threading import Timer
-import math
+
+import requests
 
 # тута делаем чтобы мой монитор не колбасило
 Config.set('graphics', 'width', '800')
@@ -33,6 +34,8 @@ class SwitchButton(Widget):
         self.bind(size=self.update_canvas, pos=self.update_canvas)
         self.update_canvas()
         self.bind(on_touch_down=self.on_touch_down)
+        self.ellipse_bg = None
+        self.circle = None
 
     def on_touch_down(self, touch, *args):
         if self.collide_point(*touch.pos):
@@ -54,6 +57,15 @@ class SwitchButton(Widget):
 # основной класс
 class GeoApp(App):
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.db = None
+        self.cursor = None
+        self.switch_button = None
+        self.layout = None
+        self.label = None
+
+
     # создаем основной интерфейс
     def build(self):
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -68,18 +80,18 @@ class GeoApp(App):
 
 
     # связь с бд
-    def connect_to_db(self):
-        try:
-            self.db = mysql.connector.connect(
-                host='localhost',
-                user='root',
-                password='php2023_egorius',
-                database='competition'
-            )
-            self.cursor = self.db.cursor(dictionary=True)
-        except mysql.connector.Error as err:
-            print(f"Ошибка подключения к базе данных: {err}")
-            self.label.text = "Ошибка подключения к базе данных"
+    # def connect_to_db(self):
+    #     try:
+    #         self.db = mysql.connector.connect(
+    #             host='localhost',
+    #             user='root',
+    #             password='php2023_egorius',
+    #             database='competition'
+    #         )
+    #         self.cursor = self.db.cursor(dictionary=True)
+    #     except mysql.connector.Error as err:
+    #         print(f"Ошибка подключения к базе данных: {err}")
+    #         self.label.text = "Ошибка подключения к базе данных"
 
     # в зависимости от значения кнопки запускается либо старт, либо стоп
     def on_switch(self, instance, value):
@@ -101,7 +113,7 @@ class GeoApp(App):
                 self.emulate_location()
 
             # Подключение к базе данных
-            self.connect_to_db()
+            # self.connect_to_db()
             self.on_location()
             error_message = f"Ошибка запуска GPS: {e}"
             print(error_message)  # Для отладки, чтобы видеть ошибку в консоли
@@ -127,30 +139,48 @@ class GeoApp(App):
         self.check_nearby_companies(lat, lon)
 
     # проверяет компании в километровом радиусе
+    # def check_nearby_companies(self, user_lat, user_lon):
+    #     try:
+    #         query = """
+    #             SELECT id, Company_name, x_coordinate, y_coordinate, advertising,
+    #             (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) *
+    #             COS(RADIANS(y_coordinate) - RADIANS(%s)) +
+    #             SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
+    #             FROM companies
+    #             HAVING distance <= 1
+    #             ORDER BY distance;
+    #         """
+    #         self.cursor.execute(query, (user_lat, user_lon, user_lat))
+    #         results = self.cursor.fetchall()
+    #
+    #         if results:
+    #             # chosen_company = random.choice(results)
+    #             # self.label.text = chosen_company
+    #             self.show_popup(results)
+    #             # self.send_notification(chosen_company)
+    #         else:
+    #             self.show_popup("Нет организаций в радиусе 1 км.")
+    #     except mysql.connector.Error as err:
+    #         print(f"Ошибка выполнения запроса: {err}")
+    #         self.label.text = "Ошибка выполнения запроса к базе данных"
+
     def check_nearby_companies(self, user_lat, user_lon):
         try:
-            query = """
-                SELECT id, Company_name, x_coordinate, y_coordinate, advertising, 
-                (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) * 
-                COS(RADIANS(y_coordinate) - RADIANS(%s)) + 
-                SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
-                FROM companies
-                HAVING distance <= 1
-                ORDER BY distance;
-            """
-            self.cursor.execute(query, (user_lat, user_lon, user_lat))
-            results = self.cursor.fetchall()
+            # Заменяем прямой запрос к базе данных на HTTP-запрос
+            response = requests.get('http://localhost:5000/nearby_companies', params={'lat': user_lat, 'lon': user_lon})
 
-            if results:
-                # chosen_company = random.choice(results)
-                # self.label.text = chosen_company
-                self.show_popup(results)
-                # self.send_notification(chosen_company)
+            if response.status_code == 200:
+                results = response.json()
+
+                if results:
+                    self.show_popup(results)
+                else:
+                    self.show_popup("Нет организаций в радиусе 1 км.")
             else:
-                self.show_popup("Нет организаций в радиусе 1 км.")
-        except mysql.connector.Error as err:
-            print(f"Ошибка выполнения запроса: {err}")
-            self.label.text = "Ошибка выполнения запроса к базе данных"
+                self.label.text = "Ошибка при запросе данных с сервера"
+        except Exception as e:
+            print(f"Ошибка выполнения HTTP-запроса: {e}")
+            self.label.text = "Ошибка выполнения HTTP-запроса к серверу"
 
     # создает уведомление
     # def send_notification(self, company):
