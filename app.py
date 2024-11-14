@@ -1,6 +1,6 @@
 # тута мы импортируем библиотеки
+import plyer
 from plyer import gps
-from plyer import notification
 from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
@@ -12,7 +12,8 @@ from kivy.graphics import Color, Ellipse, RoundedRectangle
 import mysql.connector
 import random
 from threading import Timer
-import math
+
+import requests
 
 # тута делаем чтобы мой монитор не колбасило
 Config.set('graphics', 'width', '800')
@@ -33,6 +34,8 @@ class SwitchButton(Widget):
         self.bind(size=self.update_canvas, pos=self.update_canvas)
         self.update_canvas()
         self.bind(on_touch_down=self.on_touch_down)
+        self.ellipse_bg = None
+        self.circle = None
 
     def on_touch_down(self, touch, *args):
         if self.collide_point(*touch.pos):
@@ -54,6 +57,15 @@ class SwitchButton(Widget):
 # основной класс
 class GeoApp(App):
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.db = None
+        self.cursor = None
+        self.switch_button = None
+        self.layout = None
+        self.label = None
+
+
     # создаем основной интерфейс
     def build(self):
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -66,16 +78,6 @@ class GeoApp(App):
 
         return self.layout
 
-    # подключается gps и база данных
-    def on_start(self):
-        try:
-            gps.configure(on_location=self.on_location, on_status=self.on_status)
-        except NotImplementedError:
-            self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
-            self.emulate_location()
-
-        # Подключение к базе данных
-        self.connect_to_db()
 
     # связь с бд
     def connect_to_db(self):
@@ -103,6 +105,16 @@ class GeoApp(App):
             gps.start(minTime=1000, minDistance=1)
             self.label.text = "GPS запущен. Ожидание данных..."
         except Exception as e:
+
+            try:
+                gps.configure(on_location=self.on_location, on_status=self.on_status)
+            except NotImplementedError:
+                self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
+                self.emulate_location()
+
+            # Подключение к базе данных
+            self.connect_to_db()
+            self.on_location()
             error_message = f"Ошибка запуска GPS: {e}"
             print(error_message)  # Для отладки, чтобы видеть ошибку в консоли
             self.label.text = error_message
@@ -118,51 +130,74 @@ class GeoApp(App):
 
     # получение координат
     def on_location(self, **kwargs):
-        lat = kwargs.get('lat', 'Неизвестно')
-        lon = kwargs.get('lon', 'Неизвестно')
+        # lat = kwargs.get('lat')
+        # lon = kwargs.get('lon')
+
+        lat = 55.7332
+        lon = 37.7478
         self.label.text = f"Широта: {lat}\nДолгота: {lon}"
         self.check_nearby_companies(lat, lon)
 
     # проверяет компании в километровом радиусе
+    # def check_nearby_companies(self, user_lat, user_lon):
+    #     try:
+    #         query = """
+    #             SELECT id, Company_name, x_coordinate, y_coordinate, advertising,
+    #             (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) *
+    #             COS(RADIANS(y_coordinate) - RADIANS(%s)) +
+    #             SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
+    #             FROM companies
+    #             HAVING distance <= 1
+    #             ORDER BY distance;
+    #         """
+    #         self.cursor.execute(query, (user_lat, user_lon, user_lat))
+    #         results = self.cursor.fetchall()
+    #
+    #         if results:
+    #             # chosen_company = random.choice(results)
+    #             # self.label.text = chosen_company
+    #             self.show_popup(results)
+    #             # self.send_notification(chosen_company)
+    #         else:
+    #             self.show_popup("Нет организаций в радиусе 1 км.")
+    #     except mysql.connector.Error as err:
+    #         print(f"Ошибка выполнения запроса: {err}")
+    #         self.label.text = "Ошибка выполнения запроса к базе данных"
+
     def check_nearby_companies(self, user_lat, user_lon):
         try:
-            query = """
-                SELECT id, Company_name, x_coordinate, y_coordinate, advertising, 
-                (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) * 
-                COS(RADIANS(y_coordinate) - RADIANS(%s)) + 
-                SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
-                FROM companies
-                HAVING distance <= 1
-                ORDER BY distance;
-            """
-            self.cursor.execute(query, (user_lat, user_lon, user_lat))
-            results = self.cursor.fetchall()
+            # Заменяем прямой запрос к базе данных на HTTP-запрос
+            response = requests.get('http://localhost:5000/nearby_companies', params={'lat': user_lat, 'lon': user_lon})
 
-            if results:
-                chosen_company = random.choice(results)
-                self.send_notification(chosen_company)
+            if response.status_code == 200:
+                results = response.json()
+
+                if results:
+                    self.show_popup(results)
+                else:
+                    self.show_popup("Нет организаций в радиусе 1 км.")
             else:
-                self.show_popup("Нет организаций в радиусе 1 км.")
-        except mysql.connector.Error as err:
-            print(f"Ошибка выполнения запроса: {err}")
-            self.label.text = "Ошибка выполнения запроса к базе данных"
+                self.label.text = "Ошибка при запросе данных с сервера"
+        except Exception as e:
+            print(f"Ошибка выполнения HTTP-запроса: {e}")
+            self.label.text = "Ошибка выполнения HTTP-запроса к серверу"
 
     # создает уведомление
-    def send_notification(self, company):
-        company_name = company['Company_name']
-        advertising = company.get('advertising', None)
-
-        if advertising:
-            message = advertising
-        else:
-            message = f"Хотите посетить {company_name}?"
-
-        notification.notify(
-            title="Организация поблизости!",
-            message=message,
-            timeout=10
-        )
-        self.show_popup(f"Организация: {company_name}\n{message}")
+    # def send_notification(self, company):
+    #     company_name = company['Company_name']
+    #     advertising = company.get('advertising', None)
+    #
+    #     if advertising:
+    #         message = advertising
+    #     else:
+    #         message = f"Хотите посетить {company_name}?"
+    #
+    #     notification.notify(
+    #         title="Организация поблизости!",
+    #         message=message,
+    #         timeout=10
+    #     )
+    #     self.show_popup(f"Организация: {company_name}\n{message}")
 
     def on_status(self, stype, status):
         self.label.text = f"Статус: {status}"
@@ -181,15 +216,32 @@ class GeoApp(App):
     # создает фиктивные данные о местонахождении пользователя
     def emulate_location(self):
         def mock_data():
-            fake_data = {'lat': 55.7558, 'lon': 37.6176}
+            fake_data = {'lat': 55.7332, 'lon': 37.7478}
             self.on_location(**fake_data)
 
         Timer(5.0, mock_data).start()
 
     # Показывает текст
+    # def show_popup(self, message):
+    #     popup = Popup(title='Уведомление',
+    #                   content=Label(text=message),
+    #                   size_hint=(0.8, 0.4))
+    #     popup.open()
+
     def show_popup(self, message):
+        # Проверяем, является ли message строкой
+        if isinstance(message, str):
+            content = message
+        # Проверяем, является ли message списком словарей
+        elif isinstance(message, list) and all(isinstance(i, dict) for i in message):
+            # Преобразуем список словарей в строку
+            content = '\n'.join(
+                [f"{company['Company_name']} (Расстояние: {round(company['distance'], 2)} км)" for company in message])
+        else:
+            content = "Неверный формат сообщения"
+
         popup = Popup(title='Уведомление',
-                      content=Label(text=message),
+                      content=Label(text=content),
                       size_hint=(0.8, 0.4))
         popup.open()
 
