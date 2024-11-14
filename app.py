@@ -80,18 +80,18 @@ class GeoApp(App):
 
 
     # связь с бд
-    def connect_to_db(self):
-        try:
-            self.db = mysql.connector.connect(
-                host='localhost',
-                user='root',
-                password='php2023_egorius',
-                database='competition'
-            )
-            self.cursor = self.db.cursor(dictionary=True)
-        except mysql.connector.Error as err:
-            print(f"Ошибка подключения к базе данных: {err}")
-            self.label.text = "Ошибка подключения к базе данных"
+    # def connect_to_db(self):
+    #     try:
+    #         self.db = mysql.connector.connect(
+    #             host='localhost',
+    #             user='root',
+    #             password='php2023_egorius',
+    #             database='competition'
+    #         )
+    #         self.cursor = self.db.cursor(dictionary=True)
+    #     except mysql.connector.Error as err:
+    #         print(f"Ошибка подключения к базе данных: {err}")
+    #         self.label.text = "Ошибка подключения к базе данных"
 
     # в зависимости от значения кнопки запускается либо старт, либо стоп
     def on_switch(self, instance, value):
@@ -113,7 +113,7 @@ class GeoApp(App):
                 self.emulate_location()
 
             # Подключение к базе данных
-            self.connect_to_db()
+            # self.connect_to_db()
             self.on_location()
             error_message = f"Ошибка запуска GPS: {e}"
             print(error_message)  # Для отладки, чтобы видеть ошибку в консоли
