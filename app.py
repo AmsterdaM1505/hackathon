@@ -1,5 +1,4 @@
-# тута мы импортируем библиотеки
-import plyer
+from kivy.atlas import CoreImage
 from plyer import gps
 from kivy.app import App
 from kivy.uix.label import Label
@@ -9,13 +8,17 @@ from kivy.config import Config
 from kivy.uix.widget import Widget
 from kivy.properties import BooleanProperty
 from kivy.graphics import Color, Ellipse, RoundedRectangle
-import mysql.connector
 import random
 from threading import Timer
-
 import requests
+from kivy.uix.image import Image
+from kivy.uix.button import Button
+from kivy.uix.gridlayout import GridLayout
+import webbrowser
+from io import BytesIO
+import base64
 
-# тута делаем чтобы мой монитор не колбасило
+# window correction
 Config.set('graphics', 'width', '800')
 Config.set('graphics', 'height', '600')
 Config.set('graphics', 'resizable', '1')
@@ -25,7 +28,7 @@ Config.set('graphics', 'left', '200')
 Config.set('graphics', 'borderless', '0')
 Config.set('graphics', 'fullscreen', '0')
 
-# здесь делается кнопка
+# Creation button for the settings
 class SwitchButton(Widget):
     is_on = BooleanProperty(False)
 
@@ -53,8 +56,7 @@ class SwitchButton(Widget):
             Color(1, 1, 1)
             self.circle = Ellipse(pos=(circle_x, self.y), size=(self.height, self.height))
 
-
-# основной класс
+# main class
 class GeoApp(App):
 
     def __init__(self, **kwargs):
@@ -65,8 +67,7 @@ class GeoApp(App):
         self.layout = None
         self.label = None
 
-
-    # создаем основной интерфейс
+    # interface building
     def build(self):
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         self.label = Label(text="Ожидание данных геолокации...")
@@ -78,22 +79,6 @@ class GeoApp(App):
 
         return self.layout
 
-
-    # связь с бд
-    # def connect_to_db(self):
-    #     try:
-    #         self.db = mysql.connector.connect(
-    #             host='localhost',
-    #             user='root',
-    #             password='php2023_egorius',
-    #             database='competition'
-    #         )
-    #         self.cursor = self.db.cursor(dictionary=True)
-    #     except mysql.connector.Error as err:
-    #         print(f"Ошибка подключения к базе данных: {err}")
-    #         self.label.text = "Ошибка подключения к базе данных"
-
-    # в зависимости от значения кнопки запускается либо старт, либо стоп
     def on_switch(self, instance, value):
         if value:
             self.start_gps()
@@ -105,19 +90,13 @@ class GeoApp(App):
             gps.start(minTime=1000, minDistance=1)
             self.label.text = "GPS запущен. Ожидание данных..."
         except Exception as e:
-
             try:
                 gps.configure(on_location=self.on_location, on_status=self.on_status)
             except NotImplementedError:
                 self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
                 self.emulate_location()
 
-            # Подключение к базе данных
-            # self.connect_to_db()
             self.on_location()
-            error_message = f"Ошибка запуска GPS: {e}"
-            print(error_message)  # Для отладки, чтобы видеть ошибку в консоли
-            self.label.text = error_message
 
     def stop_gps(self):
         try:
@@ -138,42 +117,19 @@ class GeoApp(App):
         self.label.text = f"Широта: {lat}\nДолгота: {lon}"
         self.check_nearby_companies(lat, lon)
 
-    # проверяет компании в километровом радиусе
-    # def check_nearby_companies(self, user_lat, user_lon):
-    #     try:
-    #         query = """
-    #             SELECT id, Company_name, x_coordinate, y_coordinate, advertising,
-    #             (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) *
-    #             COS(RADIANS(y_coordinate) - RADIANS(%s)) +
-    #             SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
-    #             FROM companies
-    #             HAVING distance <= 1
-    #             ORDER BY distance;
-    #         """
-    #         self.cursor.execute(query, (user_lat, user_lon, user_lat))
-    #         results = self.cursor.fetchall()
-    #
-    #         if results:
-    #             # chosen_company = random.choice(results)
-    #             # self.label.text = chosen_company
-    #             self.show_popup(results)
-    #             # self.send_notification(chosen_company)
-    #         else:
-    #             self.show_popup("Нет организаций в радиусе 1 км.")
-    #     except mysql.connector.Error as err:
-    #         print(f"Ошибка выполнения запроса: {err}")
-    #         self.label.text = "Ошибка выполнения запроса к базе данных"
-
     def check_nearby_companies(self, user_lat, user_lon):
         try:
-            # Заменяем прямой запрос к базе данных на HTTP-запрос
             response = requests.get('http://localhost:5000/nearby_companies', params={'lat': user_lat, 'lon': user_lon})
 
             if response.status_code == 200:
                 results = response.json()
-
+                help_res = random.choice(results)
+                company_name = help_res.get('Company_name')
+                advert = help_res.get('advertising')
+                link = help_res.get('link')
+                distance = help_res.get('distance')
                 if results:
-                    self.show_popup(results)
+                    self.show_popup4(help_res, company_name, distance, advert, link)
                 else:
                     self.show_popup("Нет организаций в радиусе 1 км.")
             else:
@@ -181,23 +137,6 @@ class GeoApp(App):
         except Exception as e:
             print(f"Ошибка выполнения HTTP-запроса: {e}")
             self.label.text = "Ошибка выполнения HTTP-запроса к серверу"
-
-    # создает уведомление
-    # def send_notification(self, company):
-    #     company_name = company['Company_name']
-    #     advertising = company.get('advertising', None)
-    #
-    #     if advertising:
-    #         message = advertising
-    #     else:
-    #         message = f"Хотите посетить {company_name}?"
-    #
-    #     notification.notify(
-    #         title="Организация поблизости!",
-    #         message=message,
-    #         timeout=10
-    #     )
-    #     self.show_popup(f"Организация: {company_name}\n{message}")
 
     def on_status(self, stype, status):
         self.label.text = f"Статус: {status}"
@@ -221,22 +160,9 @@ class GeoApp(App):
 
         Timer(5.0, mock_data).start()
 
-    # Показывает текст
-    # def show_popup(self, message):
-    #     popup = Popup(title='Уведомление',
-    #                   content=Label(text=message),
-    #                   size_hint=(0.8, 0.4))
-    #     popup.open()
-
-    def show_popup(self, message):
-        # Проверяем, является ли message строкой
+    def show_popup(self, message, company_name, distance, advert, link):
         if isinstance(message, str):
             content = message
-        # Проверяем, является ли message списком словарей
-        elif isinstance(message, list) and all(isinstance(i, dict) for i in message):
-            # Преобразуем список словарей в строку
-            content = '\n'.join(
-                [f"{company['Company_name']} (Расстояние: {round(company['distance'], 2)} км)" for company in message])
         else:
             content = "Неверный формат сообщения"
 
@@ -245,6 +171,80 @@ class GeoApp(App):
                       size_hint=(0.8, 0.4))
         popup.open()
 
+    def decode_image_from_base64(self, encoded_string, output_path):
+        image_data = base64.b64decode(encoded_string)
+        with open(output_path, "wb") as output_file:
+            # Запись бинарных данных обратно в файл
+            output_file.write(image_data)
+
+    def show_popup4(self, message, company_name, distance, advertising, link):
+        # Функция для исправления недостатка заполнения Base64
+        def fix_base64_padding(data):
+            missing_padding = len(data) % 4
+            if missing_padding:
+                data += '=' * (4 - missing_padding)
+            return data
+
+        # Декодируем закодированное изображение из Base64
+        try:
+            if advertising:
+                advertising = fix_base64_padding(advertising)
+                self.decode_image_from_base64(advertising, "decoded_image.jpg")
+                image = CoreImage("decoded_image.jpg")
+                print(image)
+        except Exception as e:
+            print(f"Ошибка декодирования изображения: {e}")
+            image = None
+
+        # Создание основной компоновки для всплывающего окна
+        layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+
+        # Добавление названия компании и расстояния
+        if company_name and distance is not None:
+            info_label = Label(text=f"Совсем рядом {str(company_name)}\n нужно пройти всего лишь {str(round(distance, 2))} км",
+                               size_hint_y=None, height=60)
+            layout.add_widget(info_label)
+
+        # Добавление изображения, если оно существует
+        if image:
+            img_widget = Image(texture=image.texture, size_hint_y=None, height=200)
+            layout.add_widget(img_widget)
+
+        # Кнопка для перехода по ссылке
+        def open_link(instance):
+            if link:
+                webbrowser.open(link)
+
+        link_button = Button(text="Посетить сайт", size_hint_y=None, height=50)
+        link_button.bind(on_release=open_link)
+        layout.add_widget(link_button)
+
+        # Кнопка закрытия всплывающего окна
+        close_button = Button(text="Закрыть", size_hint_y=None, height=50)
+        close_button.bind(on_release=lambda x: popup.dismiss())
+        layout.add_widget(close_button)
+
+        # Создание и отображение всплывающего окна
+        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.8, 0.8))
+        popup.open()
+
+        # Кнопка для перехода по ссылке
+        def open_link(instance):
+            if link:
+                webbrowser.open(link)
+
+        link_button = Button(text="Посетить сайт", size_hint_y=None, height=50)
+        link_button.bind(on_release=open_link)
+        layout.add_widget(link_button)
+
+        # Кнопка закрытия всплывающего окна
+        close_button = Button(text="Закрыть", size_hint_y=None, height=50)
+        close_button.bind(on_release=lambda x: popup.dismiss())
+        layout.add_widget(close_button)
+
+        # Создание и отображение всплывающего окна
+        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.8, 0.8))
+        popup.open()
 
 if __name__ == '__main__':
     GeoApp().run()

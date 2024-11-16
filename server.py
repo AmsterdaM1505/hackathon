@@ -20,7 +20,7 @@ def nearby_companies():
     user_lon = float(request.args.get('lon'))
 
     query = """
-        SELECT id, Company_name, x_coordinate, y_coordinate, advertising, 
+        SELECT id, Company_name, x_coordinate, y_coordinate, advertising, link, 
         (6371 * ACOS(COS(RADIANS(%s)) * COS(RADIANS(x_coordinate)) * 
         COS(RADIANS(y_coordinate) - RADIANS(%s)) + 
         SIN(RADIANS(%s)) * SIN(RADIANS(x_coordinate)))) AS distance
@@ -28,6 +28,8 @@ def nearby_companies():
         HAVING distance <= 1
         ORDER BY distance;
     """
+    db = None
+    cursor = None
 
     try:
         db = get_db_connection()
@@ -38,8 +40,12 @@ def nearby_companies():
     except mysql.connector.Error as err:
         return jsonify({"error": str(err)}), 500
     finally:
-        cursor.close()
-        db.close()
+        # cursor.close()
+        # db.close()
+        if cursor is not None:
+            cursor.close()
+        if db is not None:
+            db.close()
 
 
 if __name__ == '__main__':
