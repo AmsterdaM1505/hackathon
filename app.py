@@ -103,7 +103,7 @@ class GeoApp(App):
             gps.stop()
             self.label.text = "GPS остановлен."
         except Exception as e:
-            error_message = f"Ошибка остановки GPS: {e}"
+            error_message = "GPS остановлен."
             print(error_message)  # Для отладки
             self.label.text = error_message
 
@@ -140,17 +140,6 @@ class GeoApp(App):
 
     def on_status(self, stype, status):
         self.label.text = f"Статус: {status}"
-
-    # остановка приложения по сути
-    def on_stop(self):
-        try:
-            gps.stop()
-        except Exception as e:
-            print(f"Ошибка остановки GPS при выходе: {e}")
-
-        if hasattr(self, 'db') and self.db.is_connected():
-            self.cursor.close()
-            self.db.close()
 
     # создает фиктивные данные о местонахождении пользователя
     def emulate_location(self):
@@ -201,7 +190,7 @@ class GeoApp(App):
 
         # Добавление названия компании и расстояния
         if company_name and distance is not None:
-            info_label = Label(text=f"Совсем рядом {str(company_name)}\n нужно пройти всего лишь {str(round(distance, 2))} км",
+            info_label = Label(text=f"Совсем рядом {str(company_name)}\nнужно пройти всего лишь {str(round(distance, 2))} км",
                                size_hint_y=None, height=60)
             layout.add_widget(info_label)
 
@@ -215,19 +204,6 @@ class GeoApp(App):
             if link:
                 webbrowser.open(link)
 
-        link_button = Button(text="Посетить сайт", size_hint_y=None, height=50)
-        link_button.bind(on_release=open_link)
-        layout.add_widget(link_button)
-
-        # Кнопка закрытия всплывающего окна
-        close_button = Button(text="Закрыть", size_hint_y=None, height=50)
-        close_button.bind(on_release=lambda x: popup.dismiss())
-        layout.add_widget(close_button)
-
-        # Создание и отображение всплывающего окна
-        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.8, 0.8))
-        popup.open()
-
         # Кнопка для перехода по ссылке
         def open_link(instance):
             if link:
@@ -243,7 +219,7 @@ class GeoApp(App):
         layout.add_widget(close_button)
 
         # Создание и отображение всплывающего окна
-        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.8, 0.8))
+        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.5, 0.5))
         popup.open()
 
 if __name__ == '__main__':

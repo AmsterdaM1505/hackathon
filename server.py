@@ -3,8 +3,6 @@ import mysql.connector
 
 app = Flask(__name__)
 
-
-# Настройка подключения к базе данных
 def get_db_connection():
     return mysql.connector.connect(
         host='localhost',
@@ -12,7 +10,6 @@ def get_db_connection():
         password='php2023_egorius',
         database='competition'
     )
-
 
 @app.route('/nearby_companies', methods=['GET'])
 def nearby_companies():
@@ -40,8 +37,6 @@ def nearby_companies():
     except mysql.connector.Error as err:
         return jsonify({"error": str(err)}), 500
     finally:
-        # cursor.close()
-        # db.close()
         if cursor is not None:
             cursor.close()
         if db is not None:

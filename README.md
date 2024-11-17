@@ -47,3 +47,27 @@ def get_db_connection():
         password='your_password',
         database='your_database'
     )
+```
+
+## Installation
+### Клонируйте репозиторий:
+```bash
+git clone https://github.com/AmsterdaM1505/hackathon.git
+```
+### Измените свою базу данных или же импортируйте competition.sql
+### Запуск установки через setup.py
+```bash
+python setup.py install
+```
+### Запуск тестового приложения
+```bash
+python server.py
+python example_app.py
+```
+### В случае проблем проверьте скачан ли kivy
+```bash
+pip install kivy
+```
+### Рекомендуемые средства
+[PyCharm](https://www.jetbrains.com/ru-ru/pycharm/)
+[Wampserver](https://www.wampserver.com/)
