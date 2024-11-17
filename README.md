@@ -32,7 +32,7 @@ GeoApp — это плагин для мобильного приложения 
 - `Company_name` (VARCHAR)
 - `x_coordinate` (FLOAT)
 - `y_coordinate` (FLOAT)
-- `advertising` (TEXT, storing Base64 encoded image)
+- `advertising` (MEDIUMTEXT, storing Base64 encoded image)
 - `link` (VARCHAR)
 
 ### Database Connection Setup

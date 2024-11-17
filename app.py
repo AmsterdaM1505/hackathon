@@ -1,4 +1,3 @@
-from kivy.atlas import CoreImage
 from plyer import gps
 from kivy.app import App
 from kivy.uix.label import Label
@@ -9,14 +8,13 @@ from kivy.uix.widget import Widget
 from kivy.properties import BooleanProperty
 from kivy.graphics import Color, Ellipse, RoundedRectangle
 import random
-from threading import Timer
 import requests
 from kivy.uix.image import Image
 from kivy.uix.button import Button
-from kivy.uix.gridlayout import GridLayout
 import webbrowser
-from io import BytesIO
 import base64
+from pathlib import Path
+import os
 
 # window correction
 Config.set('graphics', 'width', '800')
@@ -96,8 +94,6 @@ class GeoApp(App):
                 self.label.text = "GPS не поддерживается на этом устройстве. Используется эмуляция."
                 self.emulate_location()
 
-            self.on_location()
-
     def stop_gps(self):
         try:
             gps.stop()
@@ -109,11 +105,8 @@ class GeoApp(App):
 
     # получение координат
     def on_location(self, **kwargs):
-        # lat = kwargs.get('lat')
-        # lon = kwargs.get('lon')
-
-        lat = 55.7332
-        lon = 37.7478
+        lat = kwargs.get('lat')
+        lon = kwargs.get('lon')
         self.label.text = f"Широта: {lat}\nДолгота: {lon}"
         self.check_nearby_companies(lat, lon)
 
@@ -130,6 +123,11 @@ class GeoApp(App):
                 distance = help_res.get('distance')
                 if results:
                     self.show_popup4(help_res, company_name, distance, advert, link)
+                    if os.path.exists("temp_image.jpg"):
+                        try:
+                            os.remove("temp_image.jpg")
+                        except Exception as e:
+                            print(f"Ошибка при удалении файла: {e}")
                 else:
                     self.show_popup("Нет организаций в радиусе 1 км.")
             else:
@@ -143,11 +141,8 @@ class GeoApp(App):
 
     # создает фиктивные данные о местонахождении пользователя
     def emulate_location(self):
-        def mock_data():
-            fake_data = {'lat': 55.7332, 'lon': 37.7478}
-            self.on_location(**fake_data)
-
-        Timer(5.0, mock_data).start()
+        fake_data = {'lat': 55.7332, 'lon': 37.7478}
+        self.on_location(**fake_data)
 
     def show_popup(self, message, company_name, distance, advert, link):
         if isinstance(message, str):
@@ -175,14 +170,19 @@ class GeoApp(App):
             return data
 
         # Декодируем закодированное изображение из Base64
+        image = None
+        # Декодируем закодированное изображение из Base64
         try:
             if advertising:
                 advertising = fix_base64_padding(advertising)
-                self.decode_image_from_base64(advertising, "decoded_image.jpg")
-                image = CoreImage("decoded_image.jpg")
-                print(image)
+                image_data = base64.b64decode(advertising)
+                try:
+                    with open("temp_image.jpg", "wb") as img_file:
+                        img_file.write(image_data)
+                except Exception as e:
+                    print(f"Ошибка с временным файлом изображения: {e}")
         except Exception as e:
-            print(f"Ошибка декодирования изображения: {e}")
+            print(f"Ошибка декодирования изображения 1: {e}, ", image)
             image = None
 
         # Создание основной компоновки для всплывающего окна
@@ -199,28 +199,29 @@ class GeoApp(App):
             img_widget = Image(texture=image.texture, size_hint_y=None, height=200)
             layout.add_widget(img_widget)
 
-        # Кнопка для перехода по ссылке
-        def open_link(instance):
-            if link:
-                webbrowser.open(link)
+        if Path("temp_image.jpg").is_file():
+            img_widget = Image(source="temp_image.jpg")
+            layout.add_widget(img_widget)
 
         # Кнопка для перехода по ссылке
         def open_link(instance):
             if link:
                 webbrowser.open(link)
 
-        link_button = Button(text="Посетить сайт", size_hint_y=None, height=50)
+        # Кнопка для перехода по ссылке
+        link_button = Button(text="Посетить сайт", height=20)
         link_button.bind(on_release=open_link)
         layout.add_widget(link_button)
 
         # Кнопка закрытия всплывающего окна
-        close_button = Button(text="Закрыть", size_hint_y=None, height=50)
+        close_button = Button(text="Закрыть", height=20)
         close_button.bind(on_release=lambda x: popup.dismiss())
         layout.add_widget(close_button)
 
-        # Создание и отображение всплывающего окна
-        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.5, 0.5))
+        # Создание и отображение всплывающего окна с меньшей высотой
+        popup = Popup(title="Информация об организации", content=layout, size_hint=(0.6, 0.5))  # Ширина 60%, высота 50%
         popup.open()
+
 
 if __name__ == '__main__':
     GeoApp().run()
